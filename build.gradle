@@ -1,6 +1,7 @@
 plugins {
     id 'java'
     id 'com.gradleup.shadow' version '9.0.0-beta13'
+    id 'maven-publish'
 }
 
 group = 'app.simplexdev'
@@ -52,4 +53,25 @@ tasks.named('shadowJar') {
 
 tasks.named('build') {
     dependsOn tasks.named('shadowJar')
+}
+
+publishing {
+    publications {
+        shadow(MavenPublication) {
+            groupId = project.group
+            artifactId = 'ssh4p'
+            version = project.version
+            artifact tasks.named('shadowJar')
+        }
+    }
+    repositories {
+        maven {
+            name = 'SimplexDev'
+            url = 'https://oss.simplexdev.app/releases'
+            credentials(PasswordCredentials)
+            authentication {
+                basic(BasicAuthentication)
+            }
+        }
+    }
 }
