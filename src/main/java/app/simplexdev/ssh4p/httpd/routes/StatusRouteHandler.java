@@ -9,6 +9,8 @@ import java.util.Arrays;
 import java.util.stream.Collectors;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.Bukkit;
+import org.bukkit.Server;
+
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
@@ -39,7 +41,7 @@ public final class StatusRouteHandler implements HttpRouteHandler {
     }
 
     private String buildJson() {
-        var server = Bukkit.getServer();
+        Server server = Bukkit.getServer();
         double[] tps = server.getTPS();
         String tpsArray = Arrays.stream(tps)
             .mapToObj(d -> String.format("%.2f", d))

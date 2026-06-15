@@ -118,7 +118,7 @@ public final class HttpPipelineBootstrap {
     }
 
     private HttpRouter buildRouter(SshKeysManager keysManager) {
-        var r = new HttpRouter();
+        HttpRouter r = new HttpRouter();
 
         r.register(HttpMethod.GET, "/api/status", new StatusRouteHandler());
         r.register(HttpMethod.POST, "/api/command", new CommandRouteHandler(plugin, sessionStore));
@@ -138,7 +138,7 @@ public final class HttpPipelineBootstrap {
             SSHLogger.get().warn("HTTP4P: could not create endpoints directory: " + e.getMessage());
         }
 
-        var fsHandler = new FileSystemRouteHandler(endpointsDir, settings, sessionStore);
+        FileSystemRouteHandler fsHandler = new FileSystemRouteHandler(endpointsDir, settings, sessionStore);
         r.registerPrefix(HttpMethod.GET, "/files", fsHandler);
         r.registerPrefix(HttpMethod.PUT, "/files", fsHandler);
 

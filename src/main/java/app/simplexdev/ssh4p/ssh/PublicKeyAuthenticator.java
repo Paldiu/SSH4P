@@ -53,8 +53,8 @@ public final class PublicKeyAuthenticator implements PublickeyAuthenticator {
         return keysManager.findByUsername(username)
             .map(entry -> {
                 try {
-                    var authorizedEntry = AuthorizedKeyEntry.parseAuthorizedKeyEntry(entry.getPublicKey());
-                    var storedKey = authorizedEntry.resolvePublicKey(
+                    AuthorizedKeyEntry authorizedEntry = AuthorizedKeyEntry.parseAuthorizedKeyEntry(entry.getPublicKey());
+                    PublicKey storedKey = authorizedEntry.resolvePublicKey(
                         null, Collections.emptyMap(), PublicKeyEntryResolver.IGNORING
                     );
                     if (storedKey != null && KeyUtils.compareKeys(key, storedKey)) {

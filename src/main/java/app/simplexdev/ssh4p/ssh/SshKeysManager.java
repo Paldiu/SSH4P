@@ -90,7 +90,7 @@ public final class SshKeysManager {
             return;
         }
 
-        try (var reader = new FileReader(keysFile, StandardCharsets.UTF_8)) {
+        try (FileReader reader = new FileReader(keysFile, StandardCharsets.UTF_8)) {
             List<SshKeyEntry> loaded = gson.fromJson(reader, ENTRY_LIST_TYPE);
             if (loaded != null) entries.addAll(loaded);
             SSHLogger.get().info("Loaded " + entries.size() + " SSH key entry(ies) from ssh_keys.json.");
@@ -126,7 +126,7 @@ public final class SshKeysManager {
     }
 
     private void save() {
-        try (var writer = new FileWriter(keysFile, StandardCharsets.UTF_8)) {
+        try (FileWriter writer = new FileWriter(keysFile, StandardCharsets.UTF_8)) {
             gson.toJson(entries, writer);
         } catch (IOException e) {
             SSHLogger.get().error("Failed to write ssh_keys.json.", e);

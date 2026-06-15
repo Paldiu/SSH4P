@@ -28,7 +28,7 @@ public final class HttpSessionStore {
      */
     public HttpSession issue(String username) {
         String token = UUID.randomUUID().toString();
-        var session = new HttpSession(token, username, Instant.now().plus(24, ChronoUnit.HOURS));
+        HttpSession session = new HttpSession(token, username, Instant.now().plus(24, ChronoUnit.HOURS));
         sessions.put(token, session);
         return session;
     }

@@ -4,6 +4,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.appender.AbstractAppender;
+import org.apache.logging.log4j.core.config.Configuration;
 import org.apache.logging.log4j.core.config.Property;
 
 import app.simplexdev.ssh4p.api.ConsoleStreamPublisher;
@@ -40,8 +41,8 @@ public final class BukkitConsoleStreamPublisher implements ConsoleStreamPublishe
         };
         appender.start();
 
-        var context = LoggerContext.getContext(false);
-        var config = context.getConfiguration();
+        LoggerContext context = LoggerContext.getContext(false);
+        Configuration config = context.getConfiguration();
         config.addAppender(appender);
         config.getRootLogger().addAppender(appender, Level.ALL, null);
         context.updateLoggers();
@@ -55,8 +56,8 @@ public final class BukkitConsoleStreamPublisher implements ConsoleStreamPublishe
     public void detach() {
         if (appender == null) return;
 
-        var context = LoggerContext.getContext(false);
-        var config = context.getConfiguration();
+        LoggerContext context = LoggerContext.getContext(false);
+        Configuration config = context.getConfiguration();
         config.getRootLogger().removeAppender(APPENDER_NAME);
         context.updateLoggers();
         appender.stop();

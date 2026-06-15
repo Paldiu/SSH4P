@@ -13,8 +13,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.BiConsumer;
 import org.apache.sshd.common.SshConstants;
+import org.apache.sshd.common.session.helpers.AbstractSession;
 import org.apache.sshd.server.SshServer;
 import org.apache.sshd.server.keyprovider.SimpleGeneratorHostKeyProvider;
+import org.apache.sshd.server.session.ServerSession;
 import org.bukkit.plugin.java.JavaPlugin;
 
 /**
@@ -55,14 +57,14 @@ public final class SshPipelineBootstrap {
      * @param keysManager the shared keystore, loaded by the caller before this method is invoked
      */
     public void start(SshKeysManager keysManager) {
-        var settings = SshPipelineSettings.fromConfig(plugin.getConfig());
+        SshPipelineSettings settings = SshPipelineSettings.fromConfig(plugin.getConfig());
 
         if (!plugin.getDataFolder().exists() && !plugin.getDataFolder().mkdirs()) {
             SSHLogger.get().warn("Could not create plugin data folder for SSH assets.");
         }
 
         MainThreadCommandBridge commandBridge = new BukkitMainThreadCommandBridge();
-        var sessionController = new SshSessionController(settings.maxSessions());
+        SshSessionController sessionController = new SshSessionController(settings.maxSessions());
 
         streamPublisher = new BukkitConsoleStreamPublisher();
         streamPublisher.attach();
@@ -138,7 +140,7 @@ public final class SshPipelineBootstrap {
     public int purgeUser(String username) {
         if (sshServer == null || !sshServer.isStarted()) return 0;
         int count = 0;
-        for (var session : sshServer.getActiveSessions()) {
+        for (AbstractSession session : sshServer.getActiveSessions()) {
             if (username.equalsIgnoreCase(session.getUsername())) {
                 try {
                     session.disconnect(SshConstants.SSH2_DISCONNECT_BY_APPLICATION, "Purged by administrator");
@@ -159,7 +161,7 @@ public final class SshPipelineBootstrap {
     public int purgeAll() {
         if (sshServer == null || !sshServer.isStarted()) return 0;
         int count = 0;
-        for (var session : sshServer.getActiveSessions()) {
+        for (AbstractSession session : sshServer.getActiveSessions()) {
             try {
                 session.disconnect(SshConstants.SSH2_DISCONNECT_BY_APPLICATION, "All sessions purged by administrator");
                 count++;

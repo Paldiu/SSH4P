@@ -38,6 +38,9 @@ public final class MinecraftConsoleShell implements Command {
     private final MainThreadCommandBridge commandBridge;
     private final ConsoleStreamPublisher streamPublisher;
     private final SshSessionController sessionController;
+    private final Sinks.Many<String> sessionOutput = Sinks.many().multicast().onBackpressureBuffer();
+    private final Sinks.Many<String> sessionErrors = Sinks.many().multicast().onBackpressureBuffer();
+    private final AtomicBoolean released = new AtomicBoolean(false);
 
     private InputStream inputStream;
     private OutputStream outputStream;
@@ -52,22 +55,6 @@ public final class MinecraftConsoleShell implements Command {
     private Disposable drainSubscription;
     private Disposable errorDrainSubscription;
     private SshSessionController.SessionInfo sessionInfo;
-
-    /**
-     * Multicast sink for SSH stdout. A single subscriber drains this to the SSH stream
-     * sequentially, regardless of which thread emits into the sink.
-     */
-    private final Sinks.Many<String> sessionOutput = Sinks.many().multicast().onBackpressureBuffer();
-
-    /**
-     * Multicast sink for SSH stderr. Maintains isolation from stdout.
-     */
-    private final Sinks.Many<String> sessionErrors = Sinks.many().multicast().onBackpressureBuffer();
-
-    /**
-     * Atomic flag to guard against release() being called by both onSessionEnd and destroy().
-     */
-    private final AtomicBoolean released = new AtomicBoolean(false);
 
     /**
      * @param plugin            the plugin, used to obtain the Bukkit main-thread executor
@@ -202,10 +189,6 @@ public final class MinecraftConsoleShell implements Command {
         );
     }
 
-    /**
-     * Called when the client input stream completes successfully.
-     * Disposes output subscriptions and signals shutdown to the client.
-     */
     private void onSessionEnd() {
         if (outputSubscription != null) outputSubscription.dispose();
         if (errorSubscription != null) errorSubscription.dispose();
@@ -232,11 +215,6 @@ public final class MinecraftConsoleShell implements Command {
         releaseSlot();
     }
 
-    /**
-     * Idempotent release of the session slot back to the controller.
-     * Uses atomic compare-and-set to ensure the slot is released only once,
-     * even if called from multiple code paths.
-     */
     private void releaseSlot() {
         if (sessionInfo != null && released.compareAndSet(false, true)) {
             sessionController.release(sessionInfo);

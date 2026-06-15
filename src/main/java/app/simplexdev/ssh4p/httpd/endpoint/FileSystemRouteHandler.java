@@ -14,6 +14,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
@@ -128,7 +130,7 @@ public final class FileSystemRouteHandler implements HttpRouteHandler {
 
     private FullHttpResponse serveDirectory(Path dir) throws IOException {
         String entries;
-        try (var stream = Files.list(dir)) {
+        try (Stream<Path> stream = Files.list(dir)) {
             entries = stream.map(p -> {
                 boolean isDir = Files.isDirectory(p);
                 String name = p.getFileName().toString();

@@ -100,7 +100,7 @@ public final class HttpRouter {
      */
     public static FullHttpResponse plainTextResponse(HttpResponseStatus status, String body) {
         byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
-        var response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, status,
+        DefaultFullHttpResponse response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, status,
             Unpooled.wrappedBuffer(bytes));
         response.headers()
             .set(HttpHeaderNames.CONTENT_TYPE, HttpHeaderValues.TEXT_PLAIN + "; charset=UTF-8")

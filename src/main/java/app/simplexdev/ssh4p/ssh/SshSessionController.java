@@ -48,7 +48,7 @@ public final class SshSessionController {
             if (current >= maxSessions) return Optional.empty();
         } while (!count.compareAndSet(current, current + 1));
 
-        var info = new SessionInfo(UUID.randomUUID(), remoteAddress, Instant.now());
+        SessionInfo info = new SessionInfo(UUID.randomUUID(), remoteAddress, Instant.now());
         sessions.add(info);
         return Optional.of(info);
     }
