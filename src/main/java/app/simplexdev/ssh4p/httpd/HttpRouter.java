@@ -100,7 +100,7 @@ public final class HttpRouter {
      */
     public static FullHttpResponse plainTextResponse(HttpResponseStatus status, String body) {
         byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
-        DefaultFullHttpResponse response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, status,
+        FullHttpResponse response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, status,
             Unpooled.wrappedBuffer(bytes));
         response.headers()
             .set(HttpHeaderNames.CONTENT_TYPE, HttpHeaderValues.TEXT_PLAIN + "; charset=UTF-8")
@@ -120,7 +120,7 @@ public final class HttpRouter {
      */
     public static FullHttpResponse jsonResponse(HttpResponseStatus status, String json) {
         byte[] bytes = json.getBytes(StandardCharsets.UTF_8);
-        var response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, status,
+        FullHttpResponse response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, status,
             Unpooled.wrappedBuffer(bytes));
         response.headers()
             .set(HttpHeaderNames.CONTENT_TYPE, "application/json; charset=UTF-8")
@@ -139,7 +139,7 @@ public final class HttpRouter {
      * @return a fully initialised {@link FullHttpResponse} with an empty body
      */
     public static FullHttpResponse emptyResponse(HttpResponseStatus status) {
-        var response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, status, Unpooled.EMPTY_BUFFER);
+        FullHttpResponse response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, status, Unpooled.EMPTY_BUFFER);
         response.headers()
             .setInt(HttpHeaderNames.CONTENT_LENGTH, 0)
             .set(HttpHeaderNames.CONNECTION, HttpHeaderValues.CLOSE);

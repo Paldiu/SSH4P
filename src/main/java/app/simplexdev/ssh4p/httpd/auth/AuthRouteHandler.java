@@ -3,12 +3,16 @@ package app.simplexdev.ssh4p.httpd.auth;
 import app.simplexdev.ssh4p.httpd.HttpRouteHandler;
 import app.simplexdev.ssh4p.httpd.HttpRouter;
 import app.simplexdev.ssh4p.ssh.SshKeysManager;
+import app.simplexdev.ssh4p.ssh.SshKeysManager.SshKeyEntry;
+
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import java.nio.charset.StandardCharsets;
+import java.util.Optional;
+
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
@@ -70,7 +74,7 @@ public final class AuthRouteHandler implements HttpRouteHandler {
         }
 
         String normalized = normalizeKey(submittedKey);
-        var match = keysManager.getAllEntries().stream()
+        Optional<SshKeyEntry> match = keysManager.getAllEntries().stream()
             .filter(e -> normalizeKey(e.getPublicKey()).equals(normalized))
             .findFirst();
 

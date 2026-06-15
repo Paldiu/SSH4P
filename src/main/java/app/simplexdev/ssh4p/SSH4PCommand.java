@@ -4,6 +4,8 @@ import org.bukkit.command.ConsoleCommandSender;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabExecutor;
+
+import app.simplexdev.ssh4p.ssh.SshPipelineBootstrap;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 
@@ -54,7 +56,7 @@ public class SSH4PCommand implements TabExecutor {
                     return true;
                 }
 
-                var bootstrap = plugin.getSshPipelineBootstrap();
+                SshPipelineBootstrap bootstrap = plugin.getSshPipelineBootstrap();
                 if (args[1].equalsIgnoreCase("all")) {
                     int count = bootstrap.purgeAll();
                     sender.sendMessage(Component.text("Purged " + count + " active SSH session(s).")

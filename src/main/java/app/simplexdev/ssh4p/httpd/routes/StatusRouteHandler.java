@@ -33,6 +33,14 @@ import reactor.core.scheduler.Schedulers;
  */
 public final class StatusRouteHandler implements HttpRouteHandler {
 
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Offloads the entire response-building process to {@code Schedulers.boundedElastic()}
+     * since it involves multiple blocking Bukkit API calls and string processing.
+     * The Netty event loop thread is not blocked at all; it only schedules the task and
+     * returns immediately.
+     */
     @Override
     public Mono<FullHttpResponse> handle(FullHttpRequest request) {
         return Mono.fromCallable(this::buildJson)

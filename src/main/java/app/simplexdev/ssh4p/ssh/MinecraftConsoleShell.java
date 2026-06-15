@@ -3,12 +3,15 @@ package app.simplexdev.ssh4p.ssh;
 import app.simplexdev.ssh4p.SSHLogger;
 import app.simplexdev.ssh4p.api.ConsoleStreamPublisher;
 import app.simplexdev.ssh4p.api.MainThreadCommandBridge;
+import app.simplexdev.ssh4p.ssh.SshSessionController.SessionInfo;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.PrintWriter;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.sshd.server.Environment;
 import org.apache.sshd.server.ExitCallback;
@@ -19,6 +22,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;
+import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
 
 /**
@@ -43,17 +47,16 @@ public final class MinecraftConsoleShell implements Command {
     private final AtomicBoolean released = new AtomicBoolean(false);
 
     private InputStream inputStream;
-    private OutputStream outputStream;
-    private OutputStream errorStream;
     private ExitCallback exitCallback;
-    private PrintWriter writer;
-    private PrintWriter errorWriter;
 
-    private Disposable sessionSubscription;
-    private Disposable outputSubscription;
-    private Disposable errorSubscription;
-    private Disposable drainSubscription;
-    private Disposable errorDrainSubscription;
+    private OutputStream outputStream, errorStream;
+    private PrintWriter writer, errorWriter;
+
+    private Disposable sessionSubscription, 
+                       outputSubscription, 
+                       errorSubscription, 
+                       drainSubscription, 
+                       errorDrainSubscription;
     private SshSessionController.SessionInfo sessionInfo;
 
     /**
@@ -133,8 +136,8 @@ public final class MinecraftConsoleShell implements Command {
                 );
         }
 
-        var remoteAddress = channel.getSession().getIoSession().getRemoteAddress().toString();
-        var acquired = sessionController.tryAcquire(remoteAddress);
+        String remoteAddress = channel.getSession().getIoSession().getRemoteAddress().toString();
+        Optional<SessionInfo> acquired = sessionController.tryAcquire(remoteAddress);
 
         if (acquired.isEmpty()) {
             sessionOutput.tryEmitNext(
@@ -148,7 +151,7 @@ public final class MinecraftConsoleShell implements Command {
 
         sessionInfo = acquired.get();
 
-        var mainThread = Schedulers.fromExecutor(
+        Scheduler mainThread = Schedulers.fromExecutor(
             Bukkit.getScheduler().getMainThreadExecutor(plugin)
         );
 
@@ -159,7 +162,7 @@ public final class MinecraftConsoleShell implements Command {
             .subscribe(line -> sessionOutput.tryEmitNext(line));
 
         sessionSubscription = Flux.<String>create(sink -> {
-            try (var reader = new BufferedReader(new InputStreamReader(inputStream))) {
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
                 String line;
                 while ((line = reader.readLine()) != null && !sink.isCancelled()) {
                     sink.next(line.trim());

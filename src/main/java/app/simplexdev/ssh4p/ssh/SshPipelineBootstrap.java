@@ -16,7 +16,6 @@ import org.apache.sshd.common.SshConstants;
 import org.apache.sshd.common.session.helpers.AbstractSession;
 import org.apache.sshd.server.SshServer;
 import org.apache.sshd.server.keyprovider.SimpleGeneratorHostKeyProvider;
-import org.apache.sshd.server.session.ServerSession;
 import org.bukkit.plugin.java.JavaPlugin;
 
 /**
