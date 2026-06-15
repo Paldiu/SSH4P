@@ -1,0 +1,7 @@
+name: SSH4P
+version: '${version}'
+main: app.simplexdev.ssh4p.SSH4P
+api-version: '1.21'
+authors:
+  - simplexdev
+description: SSH4P Paper plugin

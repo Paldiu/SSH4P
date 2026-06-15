@@ -1,0 +1,17 @@
+[
+  {
+    "username": "example_rsa",
+    "last_login": null,
+    "public_key": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC... user@host"
+  },
+  {
+    "username": "example_ecdsa",
+    "last_login": null,
+    "public_key": "ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAI... user@host"
+  },
+  {
+    "username": "example_ed25519",
+    "last_login": null,
+    "public_key": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI... user@host"
+  }
+]
