@@ -4,12 +4,14 @@ import app.simplexdev.ssh4p.SSHLogger;
 import app.simplexdev.ssh4p.api.MainThreadCommandBridge;
 import app.simplexdev.ssh4p.multiplexer.NettyPipelineInjector;
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelPipeline;
 import java.io.File;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.BiConsumer;
 import org.apache.sshd.common.SshConstants;
 import org.apache.sshd.server.SshServer;
 import org.apache.sshd.server.keyprovider.SimpleGeneratorHostKeyProvider;
@@ -32,27 +34,32 @@ import org.bukkit.plugin.java.JavaPlugin;
 public final class SshPipelineBootstrap {
 
     private final JavaPlugin plugin;
+    private final BiConsumer<ChannelPipeline, String> httpPipelineInitializer;
     private SshServer sshServer;
     private BukkitConsoleStreamPublisher streamPublisher;
-    /** Server channels we injected into; empty when running in dedicated mode. */
     private List<Channel> injectedChannels = Collections.emptyList();
 
-    public SshPipelineBootstrap(JavaPlugin plugin) {
+    /**
+     * @param plugin                 the owning plugin
+     * @param httpPipelineInitializer pipeline initializer supplied by {@link app.simplexdev.ssh4p.httpd.HttpPipelineBootstrap#pipelineInitializer()};
+     *                               {@code null} if HTTP multiplexing is disabled or HTTP is in dedicated mode
+     */
+    public SshPipelineBootstrap(JavaPlugin plugin, BiConsumer<ChannelPipeline, String> httpPipelineInitializer) {
         this.plugin = plugin;
+        this.httpPipelineInitializer = httpPipelineInitializer;
     }
 
     /**
      * Starts the SSH server and all supporting components.
+     *
+     * @param keysManager the shared keystore, loaded by the caller before this method is invoked
      */
-    public void start() {
+    public void start(SshKeysManager keysManager) {
         var settings = SshPipelineSettings.fromConfig(plugin.getConfig());
 
         if (!plugin.getDataFolder().exists() && !plugin.getDataFolder().mkdirs()) {
             SSHLogger.get().warn("Could not create plugin data folder for SSH assets.");
         }
-
-        var keysManager = new SshKeysManager(plugin.getDataFolder());
-        keysManager.load();
 
         MainThreadCommandBridge commandBridge = new BukkitMainThreadCommandBridge();
         var sessionController = new SshSessionController(settings.maxSessions());
@@ -88,7 +95,7 @@ public final class SshPipelineBootstrap {
             sshServer.setPort(loopbackPort);
             sshServer.start();
 
-            injectedChannels = NettyPipelineInjector.inject(loopbackPort);
+            injectedChannels = NettyPipelineInjector.inject(loopbackPort, httpPipelineInitializer);
 
             SSHLogger.get().info(
                 "SSH multiplexer active: SSH connections on MC port "

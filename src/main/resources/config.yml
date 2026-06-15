@@ -1,13 +1,30 @@
 ssh:
-  # Address to bind the SSH listener to. 0.0.0.0 listens on all interfaces.
+  enabled: false
+  # Address to bind the SSH listener to. Leave blank or set to 0.0.0.0 to listen on all interfaces.
   bind-address: 0.0.0.0
   # Port for the SSH server.
   # Set to -1 to share the Minecraft server port via protocol multiplexing.
-  # When -1 is used, SSHD binds to a loopback-only ephemeral port and the plugin
-  # injects a Netty handler into Paper's accept pipeline. Connections that open
-  # with the SSH banner (SSH-) are proxied to SSHD; all other traffic is handled
-  # by Minecraft as normal. bind-address is ignored in this mode.
   port: 2222
   host-key-file: hostkey.ser
   # Maximum number of concurrent SSH sessions allowed at one time.
   max-sessions: 3
+
+http:
+  enabled: false
+  # Address to bind the HTTP listener to. Leave blank or set to 0.0.0.0 to listen on all interfaces.
+  bind-address: 0.0.0.0
+  # Port for the HTTP API server.
+  # Set to -1 to share the Minecraft server port via protocol multiplexing.
+  port: -1
+  # Maximum request body size in bytes (default: 1 MB).
+  max-content-length: 1048576
+  endpoints:
+    # Extensions served without authentication under /files/.
+    public-extensions:
+      - txt
+      - log
+    # Extensions that require a valid session token to read, and to write via PUT.
+    # Place JSON or YAML files in the endpoints/ folder to expose them here.
+    private-extensions:
+      - json
+      - yml

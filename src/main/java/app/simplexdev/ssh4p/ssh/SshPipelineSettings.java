@@ -21,8 +21,9 @@ public record SshPipelineSettings(
 	 * @return settings loaded from config with defaults as fallback
 	 */
 	public static SshPipelineSettings fromConfig(FileConfiguration config) {
+		String rawBind = config.getString("ssh.bind-address", "").strip();
 		return new SshPipelineSettings(
-			config.getString("ssh.bind-address", "0.0.0.0"),
+			rawBind.isEmpty() ? "0.0.0.0" : rawBind,
 			config.getInt("ssh.port", 2222),
 			config.getString("ssh.host-key-file", "hostkey.ser"),
 			config.getInt("ssh.max-sessions", 3)

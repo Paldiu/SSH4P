@@ -1,47 +1,59 @@
 package app.simplexdev.ssh4p;
 
+import app.simplexdev.ssh4p.httpd.HttpPipelineBootstrap;
+import app.simplexdev.ssh4p.ssh.SshKeysManager;
 import app.simplexdev.ssh4p.ssh.SshPipelineBootstrap;
 import org.bukkit.plugin.java.JavaPlugin;
 
 /**
- * SSH4P — SSH console plugin for Bukkit servers.
+ * SSH4P — SSH console and HTTP API plugin for Paper servers.
  * <p>
- * Provides secure SSH access to the server console with public-key authentication.
- * Initializes the SSH server pipeline on enable and cleanly shuts it down on disable.
+ * Initialises a shared {@link SshKeysManager} on enable, then starts both the
+ * SSH and HTTP pipelines. Either pipeline can run in dedicated-port mode or share
+ * the Minecraft port via protocol multiplexing ({@code port: -1}).
  */
 public final class SSH4P extends JavaPlugin {
 
+    private SshKeysManager keysManager;
+    private HttpPipelineBootstrap httpPipelineBootstrap;
     private SshPipelineBootstrap sshPipelineBootstrap;
 
-    /**
-     * Called when the plugin is enabled.
-     * Initializes logging, loads config, and starts the SSH server.
-     */
     @Override
     public void onEnable() {
         SSHLogger.init(this);
         saveDefaultConfig();
         saveResource("ssh_keys.json", false);
-        sshPipelineBootstrap = new SshPipelineBootstrap(this);
-        sshPipelineBootstrap.start();
+
+        keysManager = new SshKeysManager(getDataFolder());
+        keysManager.load();
+
+        if (getConfig().getBoolean("http.enabled")) {
+            httpPipelineBootstrap = new HttpPipelineBootstrap(this);
+            httpPipelineBootstrap.start(keysManager);
+        }
+
+        if (getConfig().getBoolean("ssh.enabled")) {
+            sshPipelineBootstrap = new SshPipelineBootstrap(this, httpPipelineBootstrap != null ? httpPipelineBootstrap.pipelineInitializer() : null);
+            sshPipelineBootstrap.start(keysManager);
+        }
+
+        new SSH4PCommand(this);
+
         SSHLogger.get().info("SSH4P bootstrap complete.");
     }
 
-    /**
-     * Called when the plugin is disabled.
-     * Gracefully shuts down the SSH server.
-     */
     @Override
     public void onDisable() {
-        if (sshPipelineBootstrap != null) {
-            sshPipelineBootstrap.stop();
-        }
-
-        this.saveConfig();
-
+        if (sshPipelineBootstrap != null) sshPipelineBootstrap.stop();
+        if (httpPipelineBootstrap != null) httpPipelineBootstrap.stop();
+        saveConfig();
         SSHLogger.get().info("SSH4P shutdown complete.");
     }
 
+    /**
+     * Returns the active {@link SshPipelineBootstrap}, or {@code null} if SSH is disabled in config.
+     * Used by {@link SSH4PCommand} to reach the purge operations.
+     */
     public SshPipelineBootstrap getSshPipelineBootstrap() {
         return sshPipelineBootstrap;
     }

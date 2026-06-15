@@ -99,6 +99,11 @@ public final class SshKeysManager {
         }
     }
 
+    /** Returns an immutable snapshot of all entries currently in the keystore. */
+    public synchronized List<SshKeyEntry> getAllEntries() {
+        return List.copyOf(entries);
+    }
+
     /** Returns the entry for {@code username}, or empty if no such entry exists. */
     public synchronized Optional<SshKeyEntry> findByUsername(String username) {
         return entries.stream()

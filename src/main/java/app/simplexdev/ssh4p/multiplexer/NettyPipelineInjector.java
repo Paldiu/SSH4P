@@ -5,11 +5,13 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
+import io.netty.channel.ChannelPipeline;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.BiConsumer;
 import org.bukkit.Bukkit;
 
 /**
@@ -36,7 +38,7 @@ public final class NettyPipelineInjector {
      * @return the server {@link Channel}s that were modified, for cleanup via {@link #eject}
      * @throws Exception if reflection fails or the server structure is unrecognised
      */
-    public static List<Channel> inject(int loopbackPort) throws Exception {
+    public static List<Channel> inject(int loopbackPort, BiConsumer<ChannelPipeline, String> httpInitializer) throws Exception {
         Object craftServer = Bukkit.getServer();
 
         Method getServerMethod = craftServer.getClass().getDeclaredMethod("getServer");
@@ -56,7 +58,7 @@ public final class NettyPipelineInjector {
                     if (msg instanceof Channel clientChannel) {
                         try {
                             clientChannel.pipeline().addFirst("ssh4p-mux",
-                                new ProtocolMultiplexerHandler(loopbackPort));
+                                new ProtocolMultiplexerHandler(loopbackPort, httpInitializer));
                         } catch (Exception ex) {
                             SSHLogger.get().warn(
                                 "SSH multiplexer: could not inject into client channel: " + ex.getMessage());
