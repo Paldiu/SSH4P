@@ -4,8 +4,8 @@ Remote access and REST API plugin for [Paper](https://papermc.io/) Minecraft ser
 
 SSH4P exposes two independent communication channels:
 
-- **SSH console** — SSH into your server and interact with the Minecraft console directly, with full command execution and public key authentication.
-- **HTTP REST API** — programmatically query server status, dispatch commands, and read/write files over a lightweight HTTP API with bearer token auth.
+- **SSH console** - SSH into your server and interact with the Minecraft console directly, with full command execution and public key authentication.
+- **HTTP REST API** - programmatically query server status, dispatch commands, and read/write files over a lightweight HTTP API with bearer token auth.
 
 Both channels can run on dedicated ports or share the Minecraft port via protocol multiplexing.
 
@@ -42,7 +42,7 @@ ssh:
   enabled: false          # Set true to start the SSH server
   bind-address: 0.0.0.0  # Interface to listen on (0.0.0.0 = all interfaces)
   port: 2222              # SSH port; use -1 to share the Minecraft port via multiplexing
-  host-key-file: hostkey.ser  # Auto-generated on first SSH enable — do not delete
+  host-key-file: hostkey.ser  # Auto-generated on first SSH enable - do not delete
   max-sessions: 3         # Maximum concurrent SSH connections
 
 http:
@@ -65,7 +65,7 @@ http:
 
 ## Setting Up SSH Access
 
-SSH4P uses **public key authentication only** — no passwords. Authorized keys are stored in `plugins/SSH4P/ssh_keys.json`.
+SSH4P uses **public key authentication only** - no passwords. Authorized keys are stored in `plugins/SSH4P/ssh_keys.json`.
 
 ### 1. Generate a key pair (if you don't have one)
 
