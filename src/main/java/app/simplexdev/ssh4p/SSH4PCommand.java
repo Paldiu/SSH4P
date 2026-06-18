@@ -22,6 +22,12 @@ public class SSH4PCommand implements TabExecutor {
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+        if (!sender.hasPermission("ssh4p.admin") && !(sender instanceof ConsoleCommandSender)) {
+            sender.sendMessage(Component.text("You do not have permission to use this command.")
+                                        .color(NamedTextColor.RED));
+            return true;
+        }
+
         if (args.length == 0) {
             sender.sendMessage(Component.text("SSH4P — SSH console plugin for Bukkit servers.")
                                         .color(NamedTextColor.GREEN));
@@ -30,52 +36,63 @@ public class SSH4PCommand implements TabExecutor {
             return true;
         }
 
-        switch (args[0].toLowerCase()) {
-            case "reload" -> {
-                plugin.reloadConfig();
-                sender.sendMessage(Component.text("SSH4P configuration reloaded.")
-                                            .color(NamedTextColor.GREEN));
-                return true;
-            }
-            case "debug" -> {
-                SSHLogger.get().debug("Debug command executed by " + sender.getName());
-                sender.sendMessage(Component.text("Debug message logged. Check console for details.")
-                                            .color(NamedTextColor.GREEN));
-                return true;
-            }
-            case "purge" -> {
-                if (!(sender instanceof ConsoleCommandSender)) {
-                    sender.sendMessage(Component.text("Only the console can execute the purge command.")
-                                                .color(NamedTextColor.RED));
-                    return true;
-                }
+        return switch (args[0].toLowerCase()) {
+            case "reload" -> handleReload(sender);
+            case "debug"  -> handleDebug(sender);
+            case "purge"  -> handlePurge(sender, args);
+            default       -> false;
+        };
+    }
 
-                if (args.length < 2) {
-                    sender.sendMessage(Component.text("Usage: /ssh4p purge <username|all>")
-                                                .color(NamedTextColor.YELLOW));
-                    return true;
-                }
+    private boolean handleReload(CommandSender sender) {
+        plugin.restartPipelines();
+        sender.sendMessage(Component.text("SSH4P configuration reloaded and pipelines restarted.")
+                                    .color(NamedTextColor.GREEN));
+        return true;
+    }
 
-                SshPipelineBootstrap bootstrap = plugin.getSshPipelineBootstrap();
-                if (args[1].equalsIgnoreCase("all")) {
-                    int count = bootstrap.purgeAll();
-                    sender.sendMessage(Component.text("Purged " + count + " active SSH session(s).")
-                                                .color(NamedTextColor.GREEN));
-                } else {
-                    int count = bootstrap.purgeUser(args[1]);
-                    if (count == 0) {
-                        sender.sendMessage(Component.text("No active SSH sessions found for user: " + args[1])
-                                                    .color(NamedTextColor.YELLOW));
-                    } else {
-                        sender.sendMessage(Component.text("Purged " + count + " SSH session(s) for user: " + args[1])
-                                                    .color(NamedTextColor.GREEN));
-                    }
-                }
-                return true;
-            }
+    private boolean handleDebug(CommandSender sender) {
+        SSHLogger.get().debug("Debug command executed by " + sender.getName());
+        sender.sendMessage(Component.text("Debug message logged. Check console for details.")
+                                    .color(NamedTextColor.GREEN));
+        return true;
+    }
+
+    private boolean handlePurge(CommandSender sender, String[] args) {
+        if (!(sender instanceof ConsoleCommandSender)) {
+            sender.sendMessage(Component.text("Only the console can execute the purge command.")
+                                        .color(NamedTextColor.RED));
+            return true;
         }
 
-        return false;
+        if (args.length < 2) {
+            sender.sendMessage(Component.text("Usage: /ssh4p purge <username|all>")
+                                        .color(NamedTextColor.YELLOW));
+            return true;
+        }
+
+        SshPipelineBootstrap bootstrap = plugin.getSshPipelineBootstrap();
+        if (bootstrap == null) {
+            sender.sendMessage(Component.text("SSH is disabled — no sessions to purge.")
+                                        .color(NamedTextColor.YELLOW));
+            return true;
+        }
+
+        if (args[1].equalsIgnoreCase("all")) {
+            int count = bootstrap.purgeAll();
+            sender.sendMessage(Component.text("Purged " + count + " active SSH session(s).")
+                                        .color(NamedTextColor.GREEN));
+        } else {
+            int count = bootstrap.purgeUser(args[1]);
+            if (count == 0) {
+                sender.sendMessage(Component.text("No active SSH sessions found for user: " + args[1])
+                                            .color(NamedTextColor.YELLOW));
+            } else {
+                sender.sendMessage(Component.text("Purged " + count + " SSH session(s) for user: " + args[1])
+                                            .color(NamedTextColor.GREEN));
+            }
+        }
+        return true;
     }
 
     @Override

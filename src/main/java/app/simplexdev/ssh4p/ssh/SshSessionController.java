@@ -4,7 +4,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -16,6 +16,9 @@ import java.util.concurrent.atomic.AtomicInteger;
  * {@link #release} when the session ends. Passing the record object (not just an
  * address string) makes release idempotent and prevents double-counting when the
  * same IP holds multiple concurrent slots.
+ * <p>
+ * Active sessions are tracked in a {@link ConcurrentHashMap} keyed by session UUID,
+ * giving O(1) lookup and removal in {@link #release} regardless of session count.
  */
 public final class SshSessionController {
 
@@ -27,7 +30,7 @@ public final class SshSessionController {
 
     private final int maxSessions;
     private final AtomicInteger count = new AtomicInteger(0);
-    private final CopyOnWriteArrayList<SessionInfo> sessions = new CopyOnWriteArrayList<>();
+    private final ConcurrentHashMap<UUID, SessionInfo> sessions = new ConcurrentHashMap<>();
 
     /**
      * @param maxSessions the maximum number of simultaneously active sessions
@@ -49,16 +52,16 @@ public final class SshSessionController {
         } while (!count.compareAndSet(current, current + 1));
 
         SessionInfo info = new SessionInfo(UUID.randomUUID(), remoteAddress, Instant.now());
-        sessions.add(info);
+        sessions.put(info.id(), info);
         return Optional.of(info);
     }
 
     /**
-     * Releases the slot previously acquired for {@code info}.
+     * Releases the slot previously acquired for {@code info}. O(1) — keyed by UUID.
      * Safe to call more than once — only the first call has any effect.
      */
     public void release(SessionInfo info) {
-        if (sessions.remove(info)) {
+        if (sessions.remove(info.id()) != null) {
             count.decrementAndGet();
         }
     }
@@ -83,6 +86,6 @@ public final class SshSessionController {
      * The returned list is a copy and is not updated as sessions change.
      */
     public List<SessionInfo> getSessions() {
-        return List.copyOf(sessions);
+        return List.copyOf(sessions.values());
     }
 }

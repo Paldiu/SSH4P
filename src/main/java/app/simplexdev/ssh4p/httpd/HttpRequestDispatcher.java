@@ -1,6 +1,7 @@
 package app.simplexdev.ssh4p.httpd;
 
 import app.simplexdev.ssh4p.SSHLogger;
+import app.simplexdev.ssh4p.security.IpRateLimiter;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
@@ -14,30 +15,42 @@ import reactor.core.scheduler.Schedulers;
  * {@code HttpObjectAggregator} in the pipeline. Receives fully aggregated
  * {@link FullHttpRequest} objects and dispatches them through {@link HttpRouter}.
  * <p>
+ * <b>Rate limiting:</b> Each request is checked against a per-IP
+ * {@link IpRateLimiter} before routing. Connections that exceed the limit
+ * receive {@code 429 Too Many Requests} and are closed immediately.
+ * <p>
  * <b>CORS preflight:</b> {@code OPTIONS} requests are answered immediately with
- * an empty {@code 200 OK} response carrying CORS headers, without touching the
- * router. This satisfies browser pre-flight checks before any other request.
+ * an empty {@code 200 OK} carrying CORS headers, without touching the router.
  * <p>
  * <b>Request lifecycle:</b> {@link SimpleChannelInboundHandler} releases the
  * request buffer after {@code channelRead0} returns. Because routing is
- * asynchronous, the request is {@link io.netty.util.ReferenceCounted#retain() retained}
- * before the Reactor subscription begins and released in a {@code doFinally}
- * operator, ensuring the buffer remains live across the async boundary and is
- * freed exactly once regardless of whether the subscription succeeds or fails.
+ * asynchronous, the request is retained before the Reactor subscription begins
+ * and released in a {@code doFinally} operator.
  */
 public final class HttpRequestDispatcher extends SimpleChannelInboundHandler<FullHttpRequest> {
 
     /**
-     * @param router the router that resolves each request to a handler
+     * @param router      the router that resolves each request to a handler
+     * @param rateLimiter per-IP request limiter; shared across all HTTP connections
      */
-    public HttpRequestDispatcher(HttpRouter router) {
+    public HttpRequestDispatcher(HttpRouter router, IpRateLimiter rateLimiter) {
         this.router = router;
+        this.rateLimiter = rateLimiter;
     }
 
     private final HttpRouter router;
+    private final IpRateLimiter rateLimiter;
 
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, FullHttpRequest request) {
+        String ip = IpRateLimiter.extractIp(ctx.channel().remoteAddress().toString());
+        if (!rateLimiter.tryAcquire(ip)) {
+            ctx.writeAndFlush(HttpRouter.plainTextResponse(
+                HttpResponseStatus.TOO_MANY_REQUESTS, "Rate limit exceeded. Try again later."
+            )).addListener(ChannelFutureListener.CLOSE);
+            return;
+        }
+
         if (request.method() == HttpMethod.OPTIONS) {
             ctx.writeAndFlush(HttpRouter.emptyResponse(HttpResponseStatus.OK))
                .addListener(ChannelFutureListener.CLOSE);

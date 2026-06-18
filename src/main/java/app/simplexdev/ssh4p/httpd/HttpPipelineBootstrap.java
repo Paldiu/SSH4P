@@ -2,6 +2,7 @@ package app.simplexdev.ssh4p.httpd;
 
 import app.simplexdev.ssh4p.SSHLogger;
 import app.simplexdev.ssh4p.httpd.auth.AuthRouteHandler;
+import app.simplexdev.ssh4p.security.IpRateLimiter;
 import app.simplexdev.ssh4p.httpd.auth.HttpSessionStore;
 import app.simplexdev.ssh4p.httpd.endpoint.FileSystemRouteHandler;
 import app.simplexdev.ssh4p.httpd.routes.CommandRouteHandler;
@@ -15,8 +16,10 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpObjectAggregator;
+import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpServerCodec;
+import java.net.InetAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.function.BiConsumer;
@@ -56,8 +59,10 @@ public final class HttpPipelineBootstrap {
     private HttpPipelineSettings settings;
     private HttpRouter router;
     private HttpSessionStore sessionStore;
+    private IpRateLimiter rateLimiter;
     private NioEventLoopGroup bossGroup;
     private NioEventLoopGroup workerGroup;
+    private org.bukkit.scheduler.BukkitTask sweepTask;
 
     /**
      * @param plugin the owning plugin; used to locate the data folder and schedule tasks
@@ -76,7 +81,15 @@ public final class HttpPipelineBootstrap {
     public void start(SshKeysManager keysManager) {
         settings = HttpPipelineSettings.fromConfig(plugin.getConfig());
         sessionStore = new HttpSessionStore();
+        rateLimiter = new IpRateLimiter(120, 60); 
         router = buildRouter(keysManager);
+
+        warnIfNonLoopbackWithoutTls();
+
+        sweepTask = plugin.getServer().getScheduler().runTaskTimerAsynchronously(
+            plugin,
+            () -> { sessionStore.sweepExpired(); rateLimiter.sweepExpired(); },
+            6000L, 6000L);
 
         if (settings.port() != -1) {
             startDedicated();
@@ -91,6 +104,10 @@ public final class HttpPipelineBootstrap {
      * channel's event loop).
      */
     public void stop() {
+        if (sweepTask != null) {
+            sweepTask.cancel();
+            sweepTask = null;
+        }
         if (workerGroup != null) workerGroup.shutdownGracefully();
         if (bossGroup != null) bossGroup.shutdownGracefully();
     }
@@ -113,11 +130,42 @@ public final class HttpPipelineBootstrap {
         return (pipeline, afterName) -> {
             pipeline.addAfter(afterName, "http4p-codec", new HttpServerCodec());
             pipeline.addAfter("http4p-codec", "http4p-aggregator", new HttpObjectAggregator(maxLen));
-            pipeline.addAfter("http4p-aggregator", "http4p-dispatcher", new HttpRequestDispatcher(router));
+            pipeline.addAfter("http4p-aggregator", "http4p-dispatcher", new HttpRequestDispatcher(router, rateLimiter));
         };
     }
 
+    /**
+     * Logs a prominent warning when the HTTP API is bound to a non-loopback address without TLS.
+     * The {@code /api/command} route provides full console RCE; transmitting bearer tokens or
+     * commands over plaintext on a publicly reachable interface is a critical security risk.
+     */
+    private void warnIfNonLoopbackWithoutTls() {
+        if (isLoopback(settings.bindAddress())) return;
+        SSHLogger.get().warn("╔══════════════════════════════════════════════════════════════╗");
+        SSHLogger.get().warn("║  HTTP4P SECURITY WARNING                                     ║");
+        SSHLogger.get().warn("║  The HTTP API is binding to a non-loopback address           ║");
+        SSHLogger.get().warn("║  (" + padRight(settings.bindAddress(), 54) + ") ║");
+        SSHLogger.get().warn("║  without TLS. Bearer tokens and console commands cross the   ║");
+        SSHLogger.get().warn("║  wire in cleartext — this is exploitable by any on-path      ║");
+        SSHLogger.get().warn("║  attacker. Bind to 127.0.0.1, or enable TLS.                 ║");
+        SSHLogger.get().warn("╚══════════════════════════════════════════════════════════════╝");
+    }
+
+    private static boolean isLoopback(String address) {
+        try {
+            return InetAddress.getByName(address).isLoopbackAddress();
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private static String padRight(String s, int width) {
+        if (s.length() >= width) return s.substring(0, width);
+        return s + " ".repeat(width - s.length());
+    }
+
     private HttpRouter buildRouter(SshKeysManager keysManager) {
+        HttpRouter.setCorsOrigin(settings.corsOrigin());
         HttpRouter r = new HttpRouter();
 
         r.register(HttpMethod.GET, "/api/status", new StatusRouteHandler());
@@ -129,6 +177,23 @@ public final class HttpPipelineBootstrap {
                 sessionStore.invalidate(header.substring(7));
             }
             return Mono.just(HttpRouter.emptyResponse(HttpResponseStatus.NO_CONTENT));
+        });
+
+        r.register(HttpMethod.POST, "/api/auth/refresh", request -> {
+            String header = request.headers().get("Authorization");
+            if (header == null || !header.startsWith("Bearer ")) {
+                return Mono.just(HttpRouter.plainTextResponse(
+                    HttpResponseStatus.UNAUTHORIZED, "Authentication required."));
+            }
+            return Mono.just(sessionStore.refresh(header.substring(7))
+                .<FullHttpResponse>map(s -> {
+                    String json = "{\"token\":\"" + s.token() + "\","
+                        + "\"username\":\"" + s.username().replace("\"", "\\\"") + "\","
+                        + "\"expiresAt\":\"" + s.expiresAt() + "\"}";
+                    return HttpRouter.jsonResponse(HttpResponseStatus.OK, json);
+                })
+                .orElseGet(() -> HttpRouter.plainTextResponse(
+                    HttpResponseStatus.UNAUTHORIZED, "Session expired or not found.")));
         });
 
         Path endpointsDir = plugin.getDataFolder().toPath().resolve("endpoints");
@@ -159,7 +224,7 @@ public final class HttpPipelineBootstrap {
                     ChannelPipeline p = ch.pipeline();
                     p.addLast(new HttpServerCodec());
                     p.addLast(new HttpObjectAggregator(maxLen));
-                    p.addLast(new HttpRequestDispatcher(router));
+                    p.addLast(new HttpRequestDispatcher(router, rateLimiter));
                 }
             })
             .bind(settings.bindAddress(), settings.port())

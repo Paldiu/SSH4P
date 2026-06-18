@@ -108,4 +108,15 @@ public final class SSHLogger {
     public boolean isDebugEnabled() {
         return debugEnabled;
     }
+
+    /**
+     * Emits a structured audit record at INFO level, prefixed with {@code [AUDIT]}.
+     * Every command dispatched via SSH or HTTP writes one line here so there is a
+     * single, grep-able trail of who ran what and when.
+     *
+     * @param message the audit message (typically "SSH [user@ip] > command" or "HTTP [user] > command")
+     */
+    public void audit(String message) {
+        logger.info("[AUDIT] {}", message);
+    }
 }

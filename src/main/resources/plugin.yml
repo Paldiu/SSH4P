@@ -5,3 +5,14 @@ api-version: '1.21'
 authors:
   - simplexdev
 description: SSH4P Paper plugin
+
+commands:
+  ssh4p:
+    description: Manage the SSH4P plugin (reload config, debug, purge sessions).
+    usage: /ssh4p <reload|debug|purge [username|all]>
+    permission: ssh4p.admin
+
+permissions:
+  ssh4p.admin:
+    description: Allows managing the SSH4P plugin — reload, debug, and purge SSH sessions.
+    default: op

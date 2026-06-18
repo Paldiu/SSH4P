@@ -57,4 +57,27 @@ public final class SSH4P extends JavaPlugin {
     public SshPipelineBootstrap getSshPipelineBootstrap() {
         return sshPipelineBootstrap;
     }
+
+    /**
+     * Stops both pipelines, reloads the config and key store, then restarts the pipelines
+     * using the updated settings. This is the correct way to apply config changes at runtime;
+     * calling {@link #reloadConfig()} alone leaves the running pipelines on old settings.
+     */
+    public void restartPipelines() {
+        if (sshPipelineBootstrap != null) { sshPipelineBootstrap.stop(); sshPipelineBootstrap = null; }
+        if (httpPipelineBootstrap != null) { httpPipelineBootstrap.stop(); httpPipelineBootstrap = null; }
+
+        reloadConfig();
+        keysManager.load();
+
+        if (getConfig().getBoolean("http.enabled")) {
+            httpPipelineBootstrap = new HttpPipelineBootstrap(this);
+            httpPipelineBootstrap.start(keysManager);
+        }
+        if (getConfig().getBoolean("ssh.enabled")) {
+            sshPipelineBootstrap = new SshPipelineBootstrap(this,
+                httpPipelineBootstrap != null ? httpPipelineBootstrap.pipelineInitializer() : null);
+            sshPipelineBootstrap.start(keysManager);
+        }
+    }
 }

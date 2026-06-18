@@ -25,10 +25,15 @@ import java.util.Optional;
  *   {
  *     "username":   "admin",
  *     "last_login": null,
- *     "public_key": "ssh-rsa AAAA..."
+ *     "public_key": "ssh-ed25519 AAAA..."
  *   }
  * ]
  * </pre>
+ * <p>
+ * <strong>Key-type requirement:</strong> both SSH and HTTP authentication currently require
+ * Ed25519 keys. Entries using other key types (e.g. {@code ssh-rsa}) will be loaded and
+ * matched by username/key, but signature verification will fail at authentication time.
+ * A warning is logged for each non-Ed25519 entry found during {@link #load()}.</p>
  * {@code last_login} is updated in-place on every successful authentication.
  * All public methods are {@code synchronized} so concurrent auth attempts
  * (multiple clients connecting at the same moment) never corrupt the list.
@@ -96,6 +101,15 @@ public final class SshKeysManager {
             SSHLogger.get().info("Loaded " + entries.size() + " SSH key entry(ies) from ssh_keys.json.");
         } catch (IOException e) {
             SSHLogger.get().error("Failed to read ssh_keys.json.", e);
+        }
+
+        for (SshKeyEntry entry : entries) {
+            if (entry.publicKey != null && !entry.publicKey.startsWith("ssh-ed25519")) {
+                String keyType = entry.publicKey.split("\\s+")[0];
+                SSHLogger.get().warn(
+                    "ssh_keys.json: entry '" + entry.username + "' uses key type '" + keyType
+                    + "' but only Ed25519 is supported — this key cannot authenticate.");
+            }
         }
     }
 

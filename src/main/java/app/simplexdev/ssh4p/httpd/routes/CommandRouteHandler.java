@@ -1,12 +1,15 @@
 package app.simplexdev.ssh4p.httpd.routes;
 
+import app.simplexdev.ssh4p.SSHLogger;
 import app.simplexdev.ssh4p.httpd.HttpRouteHandler;
 import app.simplexdev.ssh4p.httpd.HttpRouter;
+import app.simplexdev.ssh4p.httpd.auth.HttpSession;
 import app.simplexdev.ssh4p.httpd.auth.HttpSessionStore;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import java.nio.charset.StandardCharsets;
+import java.util.Optional;
 import org.bukkit.Bukkit;
 import org.bukkit.plugin.java.JavaPlugin;
 import reactor.core.publisher.Mono;
@@ -37,7 +40,8 @@ public final class CommandRouteHandler implements HttpRouteHandler {
 
     @Override
     public Mono<FullHttpResponse> handle(FullHttpRequest request) {
-        if (sessionStore.fromRequest(request).isEmpty()) {
+        Optional<HttpSession> session = sessionStore.fromRequest(request);
+        if (session.isEmpty()) {
             return Mono.just(HttpRouter.plainTextResponse(
                 HttpResponseStatus.UNAUTHORIZED, "Authentication required."));
         }
@@ -47,6 +51,8 @@ public final class CommandRouteHandler implements HttpRouteHandler {
             return Mono.just(HttpRouter.plainTextResponse(
                 HttpResponseStatus.BAD_REQUEST, "Request body must contain the command to dispatch."));
         }
+
+        SSHLogger.get().audit("HTTP [" + session.get().username() + "] > " + command);
 
         return Mono.create(sink ->
             Bukkit.getScheduler().runTask(plugin, () -> {

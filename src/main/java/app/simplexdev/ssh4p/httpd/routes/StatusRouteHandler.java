@@ -27,9 +27,12 @@ import reactor.core.scheduler.Schedulers;
  *   "tps":     [1m, 5m, 15m]
  * }
  * </pre>
- * Bukkit API calls are safe from any thread for these read-only properties, so
- * the response is built on {@code Schedulers.boundedElastic()} without
- * scheduling a main-thread task.
+ * <strong>Thread-safety note:</strong> {@code Server.getTPS()} is documented as thread-safe
+ * in Paper. {@code Server.getOnlinePlayers()} returns an unmodifiable view backed by a
+ * concurrent collection, so reading {@code .size()} off the main thread is safe in practice,
+ * though the count may lag by one tick under heavy churn. If exact consistency with the
+ * main-thread state is required, this handler should schedule a main-thread task instead
+ * of using {@code Schedulers.boundedElastic()}.
  */
 public final class StatusRouteHandler implements HttpRouteHandler {
 
@@ -37,9 +40,9 @@ public final class StatusRouteHandler implements HttpRouteHandler {
      * {@inheritDoc}
      * <p>
      * Offloads the entire response-building process to {@code Schedulers.boundedElastic()}
-     * since it involves multiple blocking Bukkit API calls and string processing.
-     * The Netty event loop thread is not blocked at all; it only schedules the task and
-     * returns immediately.
+     * since it involves multiple Bukkit API calls and string processing.
+     * The Netty event loop thread is not blocked at all.
+     * See the class-level Javadoc for thread-safety considerations.
      */
     @Override
     public Mono<FullHttpResponse> handle(FullHttpRequest request) {

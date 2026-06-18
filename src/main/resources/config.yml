@@ -18,6 +18,9 @@ http:
   port: -1
   # Maximum request body size in bytes (default: 1 MB).
   max-content-length: 1048576
+  # CORS origin returned in Access-Control-Allow-Origin.
+  # Use "*" to allow all origins (default), or restrict to a specific domain, e.g. "https://admin.example.com".
+  cors-origin: "*"
   endpoints:
     # Extensions served without authentication under /files/.
     public-extensions:

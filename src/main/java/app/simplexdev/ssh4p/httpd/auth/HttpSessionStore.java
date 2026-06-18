@@ -61,6 +61,37 @@ public final class HttpSessionStore {
     }
 
     /**
+     * Resets the TTL of an existing session to 24 hours from now (sliding-window renewal).
+     * Returns the updated session, or empty if the token is unknown or already expired.
+     * Expired sessions are evicted from the store on this call.
+     *
+     * @param token the bearer token to refresh; {@code null} returns empty
+     * @return the refreshed session with a new {@code expiresAt}, or empty if not found/expired
+     */
+    public Optional<HttpSession> refresh(String token) {
+        if (token == null) return Optional.empty();
+        HttpSession old = sessions.get(token);
+        if (old == null || old.isExpired()) {
+            sessions.remove(token);
+            return Optional.empty();
+        }
+        HttpSession refreshed = new HttpSession(old.token(), old.username(),
+            Instant.now().plus(24, ChronoUnit.HOURS));
+        sessions.put(token, refreshed);
+        return Optional.of(refreshed);
+    }
+
+    /**
+     * Removes all sessions that have passed their {@code expiresAt} time.
+     * Expired sessions are also evicted lazily on individual {@link #validate} calls, so calling
+     * this method is optional — it is intended for periodic background sweeps to bound memory use
+     * when many sessions have been issued over a long uptime.
+     */
+    public void sweepExpired() {
+        sessions.entrySet().removeIf(e -> e.getValue().isExpired());
+    }
+
+    /**
      * Extracts the bearer token from the request's {@code Authorization} header
      * and delegates to {@link #validate(String)}.
      * <p>

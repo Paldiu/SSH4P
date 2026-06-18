@@ -33,11 +33,12 @@ import reactor.core.scheduler.Schedulers;
  *   <li>If {@code <path>} is a directory, returns a JSON directory listing with
  *       name, type, size, and last-modified timestamp for each entry.</li>
  *   <li>If {@code <path>} is a file whose extension appears in
- *       {@link HttpPipelineSettings#publicExtensions()}, the file content is
- *       returned as JSON without requiring authentication.</li>
- *   <li>If the extension appears in {@link HttpPipelineSettings#privateExtensions()},
- *       a valid bearer session is required; unauthenticated requests receive
- *       {@code 401 Unauthorized}.</li>
+ *       {@link HttpPipelineSettings#privateExtensions()}, a valid bearer session is required;
+ *       unauthenticated requests receive {@code 401 Unauthorized}.</li>
+ *   <li>If the extension appears in {@link HttpPipelineSettings#publicExtensions()}, the file
+ *       content is returned as JSON without requiring authentication.</li>
+ *   <li>If the extension appears in <em>neither</em> list, the request is rejected with
+ *       {@code 403 Forbidden} (default-deny policy).</li>
  * </ul>
  * <p>
  * <b>PUT /files/&lt;path&gt;:</b> Overwrites the file at {@code <path>} with the
@@ -74,11 +75,10 @@ public final class FileSystemRouteHandler implements HttpRouteHandler {
         String relative = uri.substring(ROUTE_PREFIX.length());
         if (relative.startsWith("/")) relative = relative.substring(1);
 
-        if (relative.contains("..")) {
+        Path target = endpointsRoot.toAbsolutePath().resolve(relative).normalize();
+        if (!target.startsWith(endpointsRoot.toAbsolutePath().normalize())) {
             return Mono.just(HttpRouter.plainTextResponse(HttpResponseStatus.FORBIDDEN, "403 Forbidden"));
         }
-
-        Path target = endpointsRoot.resolve(relative);
 
         if (request.method() == HttpMethod.GET) {
             return handleGet(request, target);
@@ -97,8 +97,13 @@ public final class FileSystemRouteHandler implements HttpRouteHandler {
 
             if (!Files.isDirectory(target)) {
                 String ext = extension(target.getFileName().toString());
-                if (settings.isPrivateExtension(ext) && sessionStore.fromRequest(request).isEmpty()) {
-                    return HttpRouter.plainTextResponse(HttpResponseStatus.UNAUTHORIZED, "Authentication required.");
+                if (settings.isPrivateExtension(ext)) {
+                    if (sessionStore.fromRequest(request).isEmpty()) {
+                        return HttpRouter.plainTextResponse(HttpResponseStatus.UNAUTHORIZED, "Authentication required.");
+                    }
+                } else if (!settings.isPublicExtension(ext)) {
+                    return HttpRouter.plainTextResponse(HttpResponseStatus.FORBIDDEN,
+                        "File extension not permitted.");
                 }
             }
 
@@ -118,8 +123,20 @@ public final class FileSystemRouteHandler implements HttpRouteHandler {
                     "Only private-extension files may be edited.");
             }
 
-            if (target.getParent() != null && !Files.exists(target.getParent())) {
+            Path parent = target.getParent();
+            if (parent != null && !Files.exists(parent)) {
                 return HttpRouter.plainTextResponse(HttpResponseStatus.NOT_FOUND, "Parent path not found.");
+            }
+
+            if (parent != null && Files.exists(parent)) {
+                try {
+                    Path realParent = parent.toRealPath();
+                    Path realRoot   = endpointsRoot.toAbsolutePath().toRealPath();
+                    if (!realParent.startsWith(realRoot)) {
+                        return HttpRouter.plainTextResponse(HttpResponseStatus.FORBIDDEN, "403 Forbidden");
+                    }
+                } catch (IOException ignored) {
+                }
             }
 
             String body = request.content().toString(StandardCharsets.UTF_8);

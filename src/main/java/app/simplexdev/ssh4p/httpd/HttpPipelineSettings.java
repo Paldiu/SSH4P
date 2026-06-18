@@ -17,7 +17,8 @@ public record HttpPipelineSettings(
     int port,
     int maxContentLength,
     List<String> publicExtensions,
-    List<String> privateExtensions
+    List<String> privateExtensions,
+    String corsOrigin
 ) {
 
     /**
@@ -36,7 +37,8 @@ public record HttpPipelineSettings(
             config.getInt("http.port", -1),
             config.getInt("http.max-content-length", 1_048_576),
             config.getStringList("http.endpoints.public-extensions"),
-            config.getStringList("http.endpoints.private-extensions")
+            config.getStringList("http.endpoints.private-extensions"),
+            config.getString("http.cors-origin", "*")
         );
     }
 

@@ -3,6 +3,7 @@ package app.simplexdev.ssh4p.ssh;
 import app.simplexdev.ssh4p.SSHLogger;
 import app.simplexdev.ssh4p.api.ConsoleStreamPublisher;
 import app.simplexdev.ssh4p.api.MainThreadCommandBridge;
+import app.simplexdev.ssh4p.security.IpRateLimiter;
 import app.simplexdev.ssh4p.ssh.SshSessionController.SessionInfo;
 
 import java.io.BufferedReader;
@@ -48,14 +49,15 @@ public final class MinecraftConsoleShell implements Command {
 
     private InputStream inputStream;
     private ExitCallback exitCallback;
+    private String sessionUsername;
 
     private OutputStream outputStream, errorStream;
     private PrintWriter writer, errorWriter;
 
-    private Disposable sessionSubscription, 
-                       outputSubscription, 
-                       errorSubscription, 
-                       drainSubscription, 
+    private Disposable sessionSubscription,
+                       outputSubscription,
+                       errorSubscription,
+                       drainSubscription,
                        errorDrainSubscription;
     private SshSessionController.SessionInfo sessionInfo;
 
@@ -102,16 +104,12 @@ public final class MinecraftConsoleShell implements Command {
     }
 
     /**
-     * Starts the SSH shell session by initializing output streams and setting up reactive pipelines.
-     * <p>
-     * Creates drain subscriptions for both stdout and stderr (if available). Attempts to acquire a
-     * session slot from {@link #sessionController}; on failure, sends capacity-full message and exits.
-     * On success, wires console output and client input to their respective reactive streams, publishing
-     * client commands to the Bukkit main thread via {@link MainThreadCommandBridge#dispatchAsConsole}.
+     * Starts the SSH shell session. Sets up output drain subscriptions, acquires a session
+     * slot, then wires console output and client input to their reactive streams.
      *
      * @param channel the SSH channel session
-     * @param env the SSH environment
-     * @throws IOException if stream setup fails
+     * @param env     the SSH environment
+     * @throws IOException if stream initialisation fails
      */
     @Override
     public void start(ChannelSession channel, Environment env) throws IOException {
@@ -120,6 +118,38 @@ public final class MinecraftConsoleShell implements Command {
             errorWriter = new PrintWriter(errorStream, true);
         }
 
+        setupOutputDrains();
+
+        sessionUsername = channel.getSession().getUsername();
+        String remoteAddress = channel.getSession().getIoSession().getRemoteAddress().toString();
+        Optional<SessionInfo> acquired = sessionController.tryAcquire(remoteAddress);
+
+        if (acquired.isEmpty()) {
+            sessionOutput.tryEmitNext(
+                "Connection refused: server is at maximum capacity ("
+                + sessionController.getMaxSessions() + " concurrent sessions)."
+            );
+            sessionOutput.tryEmitComplete();
+            if (exitCallback != null) exitCallback.onExit(1);
+            return;
+        }
+
+        sessionInfo = acquired.get();
+        Scheduler mainThread = Schedulers.fromExecutor(
+            Bukkit.getScheduler().getMainThreadExecutor(plugin)
+        );
+
+        sessionOutput.tryEmitNext("SSH4P — connected. Type commands or 'exit' to disconnect.");
+        sessionOutput.tryEmitNext("mc-console> ");
+
+        outputSubscription = streamPublisher.consoleOutput()
+            .subscribe(line -> sessionOutput.tryEmitNext(line));
+
+        setupInputPipeline(mainThread);
+    }
+
+    /** Wires the sessionOutput/sessionErrors sinks to their PrintWriter drain subscribers. */
+    private void setupOutputDrains() {
         drainSubscription = sessionOutput.asFlux()
             .publishOn(Schedulers.boundedElastic())
             .subscribe(
@@ -135,32 +165,10 @@ public final class MinecraftConsoleShell implements Command {
                     err -> SSHLogger.get().warn("SSH error drain failure: " + err.getMessage(), err)
                 );
         }
+    }
 
-        String remoteAddress = channel.getSession().getIoSession().getRemoteAddress().toString();
-        Optional<SessionInfo> acquired = sessionController.tryAcquire(remoteAddress);
-
-        if (acquired.isEmpty()) {
-            sessionOutput.tryEmitNext(
-                "Connection refused: server is at maximum capacity ("
-                + sessionController.getMaxSessions() + " concurrent sessions)."
-            );
-            sessionOutput.tryEmitComplete();
-            if (exitCallback != null) exitCallback.onExit(1);
-            return;
-        }
-
-        sessionInfo = acquired.get();
-
-        Scheduler mainThread = Schedulers.fromExecutor(
-            Bukkit.getScheduler().getMainThreadExecutor(plugin)
-        );
-
-        sessionOutput.tryEmitNext("SSH4P — connected. Type commands or 'exit' to disconnect.");
-        sessionOutput.tryEmitNext("mc-console> ");
-
-        outputSubscription = streamPublisher.consoleOutput()
-            .subscribe(line -> sessionOutput.tryEmitNext(line));
-
+    /** Builds the input-reading Flux and wires it to the Bukkit main-thread command dispatcher. */
+    private void setupInputPipeline(Scheduler mainThread) {
         sessionSubscription = Flux.<String>create(sink -> {
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
                 String line;
@@ -176,7 +184,11 @@ public final class MinecraftConsoleShell implements Command {
         .subscribeOn(Schedulers.boundedElastic())
         .takeWhile(line -> !line.equalsIgnoreCase("exit") && !line.equalsIgnoreCase("disconnect"))
         .filter(line -> !line.isBlank())
-        .doOnNext(line -> sessionOutput.tryEmitNext("mc-console> "))
+        .doOnNext(line -> {
+            SSHLogger.get().audit("SSH [" + sessionUsername + "@"
+                + IpRateLimiter.extractIp(sessionInfo.remoteAddress()) + "] > " + line);
+            sessionOutput.tryEmitNext("mc-console> ");
+        })
         .doOnComplete(() -> {
             sessionOutput.tryEmitNext("Disconnecting.");
             sessionOutput.tryEmitComplete();

@@ -34,6 +34,17 @@ import reactor.core.publisher.Mono;
  * without a proxy.
  */
 public final class HttpRouter {
+    private static volatile String corsOrigin = "*";
+
+    /**
+     * Sets the {@code Access-Control-Allow-Origin} value for all response factory methods.
+     * Called by {@link HttpPipelineBootstrap} when (re-)building the router from config.
+     *
+     * @param origin the origin to allow, e.g. {@code "*"} or {@code "https://admin.example.com"}
+     */
+    public static void setCorsOrigin(String origin) {
+        corsOrigin = (origin != null && !origin.isBlank()) ? origin : "*";
+    }
 
     private record RouteKey(String method, String path) {}
     private record PrefixEntry(String method, String prefix, HttpRouteHandler handler) {}
@@ -82,7 +93,8 @@ public final class HttpRouter {
         if (handler != null) return handler.handle(request);
 
         for (PrefixEntry entry : prefixRoutes) {
-            if (entry.method().equals(method) && path.startsWith(entry.prefix())) {
+            if (entry.method().equals(method)
+                    && (path.equals(entry.prefix()) || path.startsWith(entry.prefix() + "/"))) {
                 return entry.handler().handle(request);
             }
         }
@@ -149,7 +161,7 @@ public final class HttpRouter {
 
     private static void applyCors(FullHttpResponse response) {
         response.headers()
-            .set("Access-Control-Allow-Origin", "*")
+            .set("Access-Control-Allow-Origin", corsOrigin)
             .set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
             .set("Access-Control-Allow-Headers", "Content-Type, Authorization");
     }

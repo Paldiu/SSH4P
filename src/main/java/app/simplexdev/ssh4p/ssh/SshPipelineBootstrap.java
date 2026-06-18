@@ -3,6 +3,7 @@ package app.simplexdev.ssh4p.ssh;
 import app.simplexdev.ssh4p.SSHLogger;
 import app.simplexdev.ssh4p.api.MainThreadCommandBridge;
 import app.simplexdev.ssh4p.multiplexer.NettyPipelineInjector;
+import app.simplexdev.ssh4p.security.IpRateLimiter;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelPipeline;
 import java.io.File;
@@ -72,7 +73,8 @@ public final class SshPipelineBootstrap {
         sshServer.setKeyPairProvider(new SimpleGeneratorHostKeyProvider(
             new File(plugin.getDataFolder(), settings.hostKeyFileName()).toPath()
         ));
-        sshServer.setPublickeyAuthenticator(new PublicKeyAuthenticator(keysManager));
+        IpRateLimiter sshAuthLimiter = new IpRateLimiter(10, 60);
+        sshServer.setPublickeyAuthenticator(new PublicKeyAuthenticator(keysManager, sshAuthLimiter));
         sshServer.setShellFactory(
             new MinecraftConsoleShellFactory(plugin, commandBridge, streamPublisher, sessionController)
         );
